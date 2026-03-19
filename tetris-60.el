@@ -66,7 +66,7 @@ number, the result is used as the timer period."
 (defcustom tetris-60-empty-cell-style 'dot
   "How empty playfield cells are rendered.
 
-The value `dot' renders empty cells as `..'.  The value `blank' renders
+The value `dot' renders empty cells as ` .'.  The value `blank' renders
 them as two spaces."
   :type '(choice (const :tag "Dot matrix" dot)
                  (const :tag "Blank" blank)))
@@ -115,11 +115,11 @@ The value follows Emacs face height semantics, where 100 means 1.0x."
 (defconst tetris-60--board-x 22)
 (defconst tetris-60--board-y 3)
 (defconst tetris-60--stats-x 3)
-(defconst tetris-60--stats-y 2)
+(defconst tetris-60--stats-y 3)
 (defconst tetris-60--preview-label-x 3)
-(defconst tetris-60--preview-label-y 10)
-(defconst tetris-60--preview-x 4)
-(defconst tetris-60--preview-y 12)
+(defconst tetris-60--preview-label-y 11)
+(defconst tetris-60--preview-x 3)
+(defconst tetris-60--preview-y 13)
 (defconst tetris-60--help-x 41)
 (defconst tetris-60--help-y 3)
 (defconst tetris-60--buffer-width 66)
@@ -131,6 +131,8 @@ The value follows Emacs face height semantics, where 100 means 1.0x."
 (defconst tetris-60--cell-border-right 131)
 (defconst tetris-60--cell-border-floor 132)
 (defconst tetris-60--cell-border-base 133)
+(defconst tetris-60--cell-border-base-left 134)
+(defconst tetris-60--cell-border-base-right 135)
 
 (defconst tetris-60--playfield-left (1- tetris-60--board-x))
 (defconst tetris-60--playfield-right (+ tetris-60--board-x tetris-60--board-width))
@@ -223,7 +225,7 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
 
 (defun tetris-60--empty-cell-glyph ()
   "Return the two-column glyph string for an empty cell."
-  (if (eq tetris-60-empty-cell-style 'blank) "  " ". "))
+  (if (eq tetris-60-empty-cell-style 'blank) "  " " ."))
 
 (defun tetris-60--filled-cell-glyph ()
   "Return the two-column glyph string for a filled cell."
@@ -249,6 +251,14 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
   "Return the two-column glyph string for the second bottom border row."
   "\\/")
 
+(defun tetris-60--base-left-glyph ()
+  "Return the two-column glyph string for the left edge of the floor row."
+  " !")
+
+(defun tetris-60--base-right-glyph ()
+  "Return the two-column glyph string for the right edge of the floor row."
+  "! ")
+
 (defun tetris-60--apply-display-table ()
   "Install multi-character glyphs for the playfield cells."
   (aset buffer-display-table tetris-60--cell-empty (vconcat (tetris-60--empty-cell-glyph)))
@@ -256,7 +266,11 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
   (aset buffer-display-table tetris-60--cell-border-left (vconcat (tetris-60--left-border-glyph)))
   (aset buffer-display-table tetris-60--cell-border-right (vconcat (tetris-60--right-border-glyph)))
   (aset buffer-display-table tetris-60--cell-border-floor (vconcat (tetris-60--floor-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-base (vconcat (tetris-60--base-glyph))))
+  (aset buffer-display-table tetris-60--cell-border-base (vconcat (tetris-60--base-glyph)))
+  (aset buffer-display-table tetris-60--cell-border-base-left
+        (vconcat (tetris-60--base-left-glyph)))
+  (aset buffer-display-table tetris-60--cell-border-base-right
+        (vconcat (tetris-60--base-right-glyph))))
 
 (defun tetris-60--font-available-p (family)
   "Return non-nil when FAMILY exists in the current GUI session."
@@ -386,7 +400,16 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
                        tetris-60--cell-border-floor)
     (gamegrid-set-cell (+ tetris-60--board-x x)
                        tetris-60--playfield-base
-                       tetris-60--cell-border-base)))
+                       tetris-60--cell-border-base))
+  (gamegrid-set-cell tetris-60--playfield-right
+                     tetris-60--playfield-base
+                     tetris-60--cell-border-base)
+  (gamegrid-set-cell tetris-60--playfield-left
+                     tetris-60--playfield-bottom
+                     tetris-60--cell-border-base-left)
+  (gamegrid-set-cell tetris-60--playfield-right
+                     tetris-60--playfield-bottom
+                     tetris-60--cell-border-base-right))
 
 (defun tetris-60--render-board ()
   "Render the static board contents and the active piece."

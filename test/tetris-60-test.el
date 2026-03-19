@@ -88,6 +88,13 @@
       (should (equal (aref buffer-display-table tetris-60--cell-empty)
                      (vconcat "  "))))))
 
+(ert-deftest tetris-60-dot-cell-glyph-is-right-aligned ()
+  (let ((tetris-60-empty-cell-style 'dot))
+    (with-temp-buffer
+      (tetris-60-mode)
+      (should (equal (aref buffer-display-table tetris-60--cell-empty)
+                     (vconcat " ."))))))
+
 (ert-deftest tetris-60-movie-style-display-glyphs-are-installed ()
   (with-temp-buffer
     (tetris-60-mode)
@@ -100,7 +107,11 @@
     (should (equal (aref buffer-display-table tetris-60--cell-border-floor)
                    (vconcat (tetris-60--floor-glyph))))
     (should (equal (aref buffer-display-table tetris-60--cell-border-base)
-                   (vconcat (tetris-60--base-glyph))))))
+                   (vconcat (tetris-60--base-glyph))))
+    (should (equal (aref buffer-display-table tetris-60--cell-border-base-left)
+                   (vconcat (tetris-60--base-left-glyph))))
+    (should (equal (aref buffer-display-table tetris-60--cell-border-base-right)
+                   (vconcat (tetris-60--base-right-glyph))))))
 
 (ert-deftest tetris-60-filled-cell-glyph-is-double-width ()
   (should (= (length (tetris-60--filled-cell-glyph)) 2)))
@@ -139,7 +150,13 @@
    (tetris-60--render-game-over)
    (should (= (gamegrid-get-cell tetris-60--board-x tetris-60--playfield-bottom)
               tetris-60--cell-border-floor))
+   (should (= (gamegrid-get-cell tetris-60--playfield-left tetris-60--playfield-bottom)
+              tetris-60--cell-border-base-left))
+   (should (= (gamegrid-get-cell tetris-60--playfield-right tetris-60--playfield-bottom)
+              tetris-60--cell-border-base-right))
    (should (= (gamegrid-get-cell tetris-60--board-x tetris-60--playfield-base)
+              tetris-60--cell-border-base))
+   (should (= (gamegrid-get-cell tetris-60--playfield-right tetris-60--playfield-base)
               tetris-60--cell-border-base))
    (should (= (gamegrid-get-cell 25 25) ?G))
    (should (= (gamegrid-get-cell 25 26) ?N))))
