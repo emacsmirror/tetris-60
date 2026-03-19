@@ -25,8 +25,8 @@
 ;;; Commentary:
 
 ;; `tetris-60' is a terminal-first Tetris variant for Emacs that aims for
-;; an uncompromising ASCII look: monochrome screen, dot-matrix empty cells,
-;; bracket blocks, and a compact HUD.
+;; a classic Soviet-computer look: monochrome screen, dotted playfield,
+;; compact side text, and a centered game canvas.
 
 ;;; Code:
 
@@ -71,11 +71,11 @@ them as two spaces."
   :type '(choice (const :tag "Dot matrix" dot)
                  (const :tag "Blank" blank)))
 
-(defcustom tetris-60-foreground-color "#33FF33"
+(defcustom tetris-60-foreground-color "#73d216"
   "Foreground color used when `tetris-60-use-color' is non-nil."
   :type 'color)
 
-(defcustom tetris-60-background-color "#000000"
+(defcustom tetris-60-background-color "#2e3436"
   "Background color used when `tetris-60-use-color' is non-nil."
   :type 'color)
 
@@ -86,6 +86,20 @@ them as two spaces."
 (defcustom tetris-60-use-color t
   "Non-nil means use a phosphor-green face remap in the game buffer."
   :type 'boolean)
+
+(defcustom tetris-60-font-family "Courier New"
+  "Preferred font family for `tetris-60' in GUI Emacs.
+
+If nil, `tetris-60' keeps the current Emacs font."
+  :type '(choice (const :tag "Use current default font" nil)
+                 string))
+
+(defcustom tetris-60-font-height 140
+  "Preferred buffer-local font height for `tetris-60' in GUI Emacs.
+
+The value follows Emacs face height semantics, where 100 means 1.0x."
+  :type '(choice (const :tag "Use current default height" nil)
+                 integer))
 
 (defcustom tetris-60-mode-hook nil
   "Hook run after entering `tetris-60-mode'."
@@ -98,25 +112,27 @@ them as two spaces."
 
 (defconst tetris-60--board-width 10)
 (defconst tetris-60--board-height 20)
-(defconst tetris-60--board-x 2)
-(defconst tetris-60--board-y 2)
-(defconst tetris-60--hud-x 16)
-(defconst tetris-60--hud-y 2)
-(defconst tetris-60--preview-x tetris-60--hud-x)
-(defconst tetris-60--preview-y 4)
-(defconst tetris-60--controls-y 12)
-(defconst tetris-60--buffer-width 44)
-(defconst tetris-60--buffer-height 24)
+(defconst tetris-60--board-x 22)
+(defconst tetris-60--board-y 3)
+(defconst tetris-60--stats-x 3)
+(defconst tetris-60--stats-y 2)
+(defconst tetris-60--preview-label-x 3)
+(defconst tetris-60--preview-label-y 10)
+(defconst tetris-60--preview-x 4)
+(defconst tetris-60--preview-y 12)
+(defconst tetris-60--help-x 41)
+(defconst tetris-60--help-y 2)
+(defconst tetris-60--buffer-width 66)
+(defconst tetris-60--buffer-height 26)
 
 (defconst tetris-60--cell-empty 128)
 (defconst tetris-60--cell-filled 129)
-(defconst tetris-60--cell-border-h 130)
-(defconst tetris-60--cell-border-v 131)
-(defconst tetris-60--cell-corner 132)
+(defconst tetris-60--cell-border-left 130)
+(defconst tetris-60--cell-border-right 131)
+(defconst tetris-60--cell-border-floor 132)
 
 (defconst tetris-60--playfield-left (1- tetris-60--board-x))
 (defconst tetris-60--playfield-right (+ tetris-60--board-x tetris-60--board-width))
-(defconst tetris-60--playfield-top (1- tetris-60--board-y))
 (defconst tetris-60--playfield-bottom (+ tetris-60--board-y tetris-60--board-height))
 
 (defconst tetris-60--shapes
@@ -171,23 +187,23 @@ them as two spaces."
 (defvar-keymap tetris-60-mode-map
   :doc "Keymap used while a `tetris-60' game is active."
   :name 'tetris-60-mode-map
-  "n" #'tetris-60-start-game
-  "q" #'tetris-60-end-game
-  "p" #'tetris-60-pause-game
-  "j" #'tetris-60-move-left
-  "l" #'tetris-60-move-right
-  "i" #'tetris-60-rotate
-  "k" #'tetris-60-move-down
-  "SPC" #'tetris-60-hard-drop
-  "<left>" #'tetris-60-move-left
-  "<right>" #'tetris-60-move-right
-  "<up>" #'tetris-60-rotate
-  "<down>" #'tetris-60-move-down)
+  "n" (lambda () (interactive) (tetris-60--start-game))
+  "q" (lambda () (interactive) (tetris-60--end-game))
+  "p" (lambda () (interactive) (tetris-60--pause-game))
+  "j" (lambda () (interactive) (tetris-60--move-left))
+  "l" (lambda () (interactive) (tetris-60--move-right))
+  "i" (lambda () (interactive) (tetris-60--rotate))
+  "k" (lambda () (interactive) (tetris-60--move-down))
+  "SPC" (lambda () (interactive) (tetris-60--hard-drop))
+  "<left>" (lambda () (interactive) (tetris-60--move-left))
+  "<right>" (lambda () (interactive) (tetris-60--move-right))
+  "<up>" (lambda () (interactive) (tetris-60--rotate))
+  "<down>" (lambda () (interactive) (tetris-60--move-down)))
 
 (defvar-keymap tetris-60-null-map
   :doc "Keymap used after a `tetris-60' game ends."
   :name 'tetris-60-null-map
-  "n" #'tetris-60-start-game
+  "n" (lambda () (interactive) (tetris-60--start-game))
   "q" #'quit-window)
 
 (defun tetris-60-default-update-speed-function (_shapes lines)
@@ -205,22 +221,62 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
 
 (defun tetris-60--empty-cell-glyph ()
   "Return the two-column glyph string for an empty cell."
-  (if (eq tetris-60-empty-cell-style 'blank) "  " ".."))
+  (if (eq tetris-60-empty-cell-style 'blank) "  " ". "))
+
+(defun tetris-60--filled-cell-glyph ()
+  "Return the two-column glyph string for a filled cell."
+  "[]")
+
+(defun tetris-60--preview-empty-glyph ()
+  "Return the two-column glyph string for an empty preview cell."
+  "  ")
+
+(defun tetris-60--left-border-glyph ()
+  "Return the two-column glyph string for the left wall."
+  "<|")
+
+(defun tetris-60--right-border-glyph ()
+  "Return the two-column glyph string for the right wall."
+  "|>")
+
+(defun tetris-60--floor-glyph ()
+  "Return the two-column glyph string for the floor."
+  "\\/")
 
 (defun tetris-60--apply-display-table ()
   "Install multi-character glyphs for the playfield cells."
   (aset buffer-display-table tetris-60--cell-empty (vconcat (tetris-60--empty-cell-glyph)))
-  (aset buffer-display-table tetris-60--cell-filled (vconcat "[]"))
-  (aset buffer-display-table tetris-60--cell-border-h (vconcat "--"))
-  (aset buffer-display-table tetris-60--cell-border-v (vconcat "|"))
-  (aset buffer-display-table tetris-60--cell-corner (vconcat "+")))
+  (aset buffer-display-table tetris-60--cell-filled (vconcat (tetris-60--filled-cell-glyph)))
+  (aset buffer-display-table tetris-60--cell-border-left (vconcat (tetris-60--left-border-glyph)))
+  (aset buffer-display-table tetris-60--cell-border-right (vconcat (tetris-60--right-border-glyph)))
+  (aset buffer-display-table tetris-60--cell-border-floor (vconcat (tetris-60--floor-glyph))))
+
+(defun tetris-60--font-available-p (family)
+  "Return non-nil when FAMILY exists in the current GUI session."
+  (and family
+       (display-graphic-p)
+       (member family (font-family-list))))
+
+(defun tetris-60--resolve-font-family ()
+  "Return the font family to use for the current `tetris-60' buffer."
+  (and (tetris-60--font-available-p tetris-60-font-family)
+       tetris-60-font-family))
 
 (defun tetris-60--setup-face ()
   "Apply the retro screen colors for the current buffer."
-  (setq-local face-remapping-alist
-              (when tetris-60-use-color
-                `((default (:foreground ,tetris-60-foreground-color
-                                        :background ,tetris-60-background-color)))))
+  (let ((spec nil))
+    (when tetris-60-use-color
+      (setq spec (append spec `(:foreground ,tetris-60-foreground-color
+                                :background ,tetris-60-background-color))))
+    (let ((family (tetris-60--resolve-font-family)))
+      (when family
+        (setq spec (append spec `(:family ,family)))))
+    (when (and (display-graphic-p) tetris-60-font-height)
+      (setq spec (append spec `(:height ,tetris-60-font-height))))
+    (setq-local face-remapping-alist
+                (when spec
+                  `((default ,spec)))))
+  (setq-local line-spacing 0)
   (setq-local cursor-type nil))
 
 (defun tetris-60--init-buffer ()
@@ -228,10 +284,9 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
   (gamegrid-init-buffer tetris-60--buffer-width
                         tetris-60--buffer-height
                         ?\s)
-  (tetris-60--draw-frame)
-  (tetris-60--clear-rect tetris-60--hud-x 0
-                         (- tetris-60--buffer-width tetris-60--hud-x)
-                         tetris-60--buffer-height))
+  (tetris-60--reset-window-margins)
+  (tetris-60--clear-rect 0 0 tetris-60--buffer-width tetris-60--buffer-height)
+  (tetris-60--draw-frame))
 
 (defun tetris-60--make-empty-row ()
   "Return a fresh empty board row."
@@ -304,26 +359,24 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
     (dotimes (dx width)
       (gamegrid-set-cell (+ x dx) (+ y dy) ?\s))))
 
+(defun tetris-60--reset-window-margins ()
+  "Clear left and right margins for windows showing the current buffer."
+  (dolist (window (get-buffer-window-list (current-buffer) nil t))
+    (set-window-margins window 0 0)))
+
 (defun tetris-60--draw-frame ()
-  "Draw the static ASCII border around the playfield."
-  (dotimes (x tetris-60--board-width)
-    (gamegrid-set-cell (+ tetris-60--playfield-left 1 x)
-                       tetris-60--playfield-top
-                       tetris-60--cell-border-h)
-    (gamegrid-set-cell (+ tetris-60--playfield-left 1 x)
-                       tetris-60--playfield-bottom
-                       tetris-60--cell-border-h))
+  "Draw the static movie-style border around the playfield."
   (dotimes (y tetris-60--board-height)
     (gamegrid-set-cell tetris-60--playfield-left
-                       (+ tetris-60--playfield-top 1 y)
-                       tetris-60--cell-border-v)
+                       (+ tetris-60--board-y y)
+                       tetris-60--cell-border-left)
     (gamegrid-set-cell tetris-60--playfield-right
-                       (+ tetris-60--playfield-top 1 y)
-                       tetris-60--cell-border-v))
-  (gamegrid-set-cell tetris-60--playfield-left tetris-60--playfield-top tetris-60--cell-corner)
-  (gamegrid-set-cell tetris-60--playfield-right tetris-60--playfield-top tetris-60--cell-corner)
-  (gamegrid-set-cell tetris-60--playfield-left tetris-60--playfield-bottom tetris-60--cell-corner)
-  (gamegrid-set-cell tetris-60--playfield-right tetris-60--playfield-bottom tetris-60--cell-corner))
+                       (+ tetris-60--board-y y)
+                       tetris-60--cell-border-right))
+  (dotimes (x tetris-60--board-width)
+    (gamegrid-set-cell (+ tetris-60--board-x x)
+                       tetris-60--playfield-bottom
+                       tetris-60--cell-border-floor)))
 
 (defun tetris-60--render-board ()
   "Render the static board contents and the active piece."
@@ -344,42 +397,49 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
 
 (defun tetris-60--render-preview ()
   "Render the next piece preview."
-  (dotimes (row 4)
-    (dotimes (col 4)
-      (gamegrid-set-cell (+ tetris-60--preview-x col)
-                         (+ tetris-60--preview-y row)
-                         tetris-60--cell-empty)))
-  (dolist (cell (append (tetris-60--shape-cells tetris-60--next-shape 0) nil))
-    (let ((x (aref cell 0))
-          (y (aref cell 1)))
-      (when (and (<= 0 x 3) (<= 0 y 3))
-        (gamegrid-set-cell (+ tetris-60--preview-x x)
-                           (+ tetris-60--preview-y y)
-                           tetris-60--cell-filled)))))
+  (let ((rows (make-vector 4 nil))
+        (empty (tetris-60--preview-empty-glyph))
+        (filled (tetris-60--filled-cell-glyph)))
+    (dotimes (row 4)
+      (aset rows row (make-list 4 empty)))
+    (dolist (cell (append (tetris-60--shape-cells tetris-60--next-shape 0) nil))
+      (let ((x (aref cell 0))
+            (y (aref cell 1)))
+        (when (and (<= 0 x 3) (<= 0 y 3))
+          (setf (nth x (aref rows y)) filled))))
+    (dotimes (row 4)
+      (tetris-60--put-string tetris-60--preview-x
+                             (+ tetris-60--preview-y row)
+                             (apply #'concat (aref rows row))
+                             8))))
 
 (defun tetris-60--render-status ()
-  "Render the HUD."
-  (tetris-60--put-string tetris-60--hud-x tetris-60--hud-y "NEXT" 20)
-  (tetris-60--put-string tetris-60--hud-x 9 (format "SCORE %05d" tetris-60--score) 20)
-  (tetris-60--put-string tetris-60--hud-x 10 (format "LINES %05d" tetris-60--line-count) 20)
-  (tetris-60--put-string tetris-60--hud-x 11 (format "LEVEL %02d" (tetris-60--level)) 20)
+  "Render the movie-style status areas."
+  (tetris-60--put-string tetris-60--stats-x tetris-60--stats-y
+                         (format "LINES: %3d" tetris-60--line-count) 16)
+  (tetris-60--put-string tetris-60--stats-x (1+ tetris-60--stats-y)
+                         (format "LEVEL: %3d" (tetris-60--level)) 16)
+  (tetris-60--put-string tetris-60--stats-x (+ tetris-60--stats-y 2)
+                         (format "SCORE: %3d" tetris-60--score) 16)
+  (tetris-60--put-string tetris-60--preview-label-x tetris-60--preview-label-y
+                         "NEXT:" 8)
   (if tetris-60-show-controls
       (progn
-        (tetris-60--put-string tetris-60--hud-x tetris-60--controls-y "j LEFT   l RIGHT" 24)
-        (tetris-60--put-string tetris-60--hud-x (1+ tetris-60--controls-y) "i ROTATE k DROP" 24)
-        (tetris-60--put-string tetris-60--hud-x (+ tetris-60--controls-y 2) "SPC HARD DROP" 24)
-        (tetris-60--put-string tetris-60--hud-x (+ tetris-60--controls-y 3) "p PAUSE  n NEW" 24)
-        (tetris-60--put-string tetris-60--hud-x (+ tetris-60--controls-y 4) "q END GAME" 24))
-    (tetris-60--clear-rect tetris-60--hud-x tetris-60--controls-y 24 5))
+        (tetris-60--put-string tetris-60--help-x tetris-60--help-y "J  LEFT     L  RIGHT" 25)
+        (tetris-60--put-string tetris-60--help-x (1+ tetris-60--help-y) "I  ROTATE" 25)
+        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 2) "K  SOFT     SPC DROP" 25)
+        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 3) "P  PAUSE    N  NEW" 25)
+        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 4) "Q  END GAME" 25))
+    (tetris-60--clear-rect tetris-60--help-x tetris-60--help-y 25 5))
   (when tetris-60--paused
-    (tetris-60--put-string tetris-60--hud-x 18 "PAUSED" 20))
+    (tetris-60--put-string tetris-60--help-x 20 "PAUSED" 16))
   (unless tetris-60--paused
-    (tetris-60--put-string tetris-60--hud-x 18 "" 20)))
+    (tetris-60--put-string tetris-60--help-x 20 "" 16)))
 
 (defun tetris-60--render-game-over ()
   "Render the game-over banner."
-  (tetris-60--put-string tetris-60--hud-x 19 "GAME OVER" 20)
-  (tetris-60--put-string tetris-60--hud-x 20 "n NEW GAME" 20))
+  (tetris-60--put-string 25 23 "GAME OVER" 18)
+  (tetris-60--put-string 25 24 "N: NEW GAME" 18))
 
 (defun tetris-60--render ()
   "Render the full game state."
@@ -464,7 +524,7 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
   (if (tetris-60--collision-p)
       (progn
         (setq tetris-60--piece-active nil)
-        (tetris-60-end-game))
+        (tetris-60--end-game))
     (tetris-60--render)))
 
 (defun tetris-60--lock-piece ()
@@ -584,16 +644,15 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (when (and (not tetris-60--paused)
-                 (tetris-60-active-p))
+                 (tetris-60--game-active-p))
         (tetris-60--move-piece 0 1 t)))))
 
-(defun tetris-60-active-p ()
+(defun tetris-60--game-active-p ()
   "Return non-nil if a `tetris-60' game is active."
   (eq (current-local-map) tetris-60-mode-map))
 
-(defun tetris-60-start-game ()
+(defun tetris-60--start-game ()
   "Start a new `tetris-60' game."
-  (interactive nil tetris-60-mode)
   (gamegrid-kill-timer)
   (tetris-60--apply-display-table)
   (tetris-60--setup-face)
@@ -602,52 +661,45 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
   (tetris-60--reset-state)
   (gamegrid-start-timer (tetris-60--tick-period) #'tetris-60--tick))
 
-(defun tetris-60-end-game ()
+(defun tetris-60--end-game ()
   "End the current `tetris-60' game."
-  (interactive nil tetris-60-mode)
   (gamegrid-kill-timer)
   (use-local-map tetris-60-null-map)
   (tetris-60--record-score)
   (tetris-60--render)
   (tetris-60--render-game-over))
 
-(defun tetris-60-pause-game ()
+(defun tetris-60--pause-game ()
   "Toggle pause state."
-  (interactive nil tetris-60-mode)
-  (when (tetris-60-active-p)
+  (when (tetris-60--game-active-p)
     (setq tetris-60--paused (not tetris-60--paused))
     (tetris-60--render)
     (message (if tetris-60--paused
                  "Tetris-60 paused"
                "Tetris-60 resumed"))))
 
-(defun tetris-60-move-left ()
+(defun tetris-60--move-left ()
   "Move the active piece one cell left."
-  (interactive nil tetris-60-mode)
   (unless tetris-60--paused
     (tetris-60--move-piece -1 0)))
 
-(defun tetris-60-move-right ()
+(defun tetris-60--move-right ()
   "Move the active piece one cell right."
-  (interactive nil tetris-60-mode)
   (unless tetris-60--paused
     (tetris-60--move-piece 1 0)))
 
-(defun tetris-60-move-down ()
+(defun tetris-60--move-down ()
   "Soft-drop the active piece by one row."
-  (interactive nil tetris-60-mode)
   (unless tetris-60--paused
     (tetris-60--move-piece 0 1)))
 
-(defun tetris-60-rotate ()
+(defun tetris-60--rotate ()
   "Rotate the active piece clockwise."
-  (interactive nil tetris-60-mode)
   (unless tetris-60--paused
     (tetris-60--rotate-piece)))
 
-(defun tetris-60-hard-drop ()
+(defun tetris-60--hard-drop ()
   "Drop the active piece to the bottom and lock it."
-  (interactive nil tetris-60-mode)
   (unless tetris-60--paused
     (while (tetris-60--move-piece 0 1))
     (tetris-60--lock-piece)))
@@ -676,7 +728,7 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
   (switch-to-buffer tetris-60-buffer-name)
   (gamegrid-kill-timer)
   (tetris-60-mode)
-  (tetris-60-start-game))
+  (tetris-60--start-game))
 
 (provide 'tetris-60)
 

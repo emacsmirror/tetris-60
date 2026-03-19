@@ -88,6 +88,49 @@
       (should (equal (aref buffer-display-table tetris-60--cell-empty)
                      (vconcat "  "))))))
 
+(ert-deftest tetris-60-movie-style-display-glyphs-are-installed ()
+  (with-temp-buffer
+    (tetris-60-mode)
+    (should (equal (aref buffer-display-table tetris-60--cell-filled)
+                   (vconcat (tetris-60--filled-cell-glyph))))
+    (should (equal (aref buffer-display-table tetris-60--cell-border-left)
+                   (vconcat (tetris-60--left-border-glyph))))
+    (should (equal (aref buffer-display-table tetris-60--cell-border-right)
+                   (vconcat (tetris-60--right-border-glyph))))
+    (should (equal (aref buffer-display-table tetris-60--cell-border-floor)
+                   (vconcat (tetris-60--floor-glyph))))))
+
+(ert-deftest tetris-60-filled-cell-glyph-is-double-width ()
+  (should (= (length (tetris-60--filled-cell-glyph)) 2)))
+
+(ert-deftest tetris-60-preview-renders-only-blocks-on-blank-background ()
+  (tetris-60-test--with-game
+   (setq tetris-60--next-shape 0)
+   (tetris-60--render-preview)
+   (should (= (gamegrid-get-cell tetris-60--preview-x tetris-60--preview-y) ?\[))
+   (should (= (gamegrid-get-cell (+ tetris-60--preview-x 4) tetris-60--preview-y) ?\s))
+   (should (= (gamegrid-get-cell (+ tetris-60--preview-x 6) (+ tetris-60--preview-y 2)) ?\s))))
+
+(ert-deftest tetris-60-font-customization-is-safe-in-nongui-mode ()
+  (let ((tetris-60-font-family "PT Mono")
+        (tetris-60-font-height 180))
+    (with-temp-buffer
+      (tetris-60-mode)
+      (should-not (tetris-60--resolve-font-family))
+      (should (local-variable-p 'face-remapping-alist))
+      (should (local-variable-p 'cursor-type)))))
+
+(ert-deftest tetris-60-only-entry-command-is-public ()
+  (should (commandp #'tetris-60))
+  (should-not (commandp #'tetris-60--start-game))
+  (should-not (commandp #'tetris-60--end-game))
+  (should-not (commandp #'tetris-60--pause-game))
+  (should-not (commandp #'tetris-60--move-left))
+  (should-not (commandp #'tetris-60--move-right))
+  (should-not (commandp #'tetris-60--move-down))
+  (should-not (commandp #'tetris-60--rotate))
+  (should-not (commandp #'tetris-60--hard-drop)))
+
 (ert-deftest tetris-60-tick-period-respects-custom-speed-function ()
   (let ((tetris-60-update-speed-function (lambda (_shapes lines)
                                            (/ 1.0 (1+ lines)))))
