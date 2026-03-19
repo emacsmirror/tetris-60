@@ -121,19 +121,21 @@ The value follows Emacs face height semantics, where 100 means 1.0x."
 (defconst tetris-60--preview-x 4)
 (defconst tetris-60--preview-y 12)
 (defconst tetris-60--help-x 41)
-(defconst tetris-60--help-y 2)
+(defconst tetris-60--help-y 3)
 (defconst tetris-60--buffer-width 66)
-(defconst tetris-60--buffer-height 26)
+(defconst tetris-60--buffer-height 27)
 
 (defconst tetris-60--cell-empty 128)
 (defconst tetris-60--cell-filled 129)
 (defconst tetris-60--cell-border-left 130)
 (defconst tetris-60--cell-border-right 131)
 (defconst tetris-60--cell-border-floor 132)
+(defconst tetris-60--cell-border-base 133)
 
 (defconst tetris-60--playfield-left (1- tetris-60--board-x))
 (defconst tetris-60--playfield-right (+ tetris-60--board-x tetris-60--board-width))
 (defconst tetris-60--playfield-bottom (+ tetris-60--board-y tetris-60--board-height))
+(defconst tetris-60--playfield-base (1+ tetris-60--playfield-bottom))
 
 (defconst tetris-60--shapes
   [[[[0  0] [1  0] [0  1] [1  1]]]
@@ -233,14 +235,18 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
 
 (defun tetris-60--left-border-glyph ()
   "Return the two-column glyph string for the left wall."
-  "<|")
+  "<!")
 
 (defun tetris-60--right-border-glyph ()
   "Return the two-column glyph string for the right wall."
-  "|>")
+  "!>")
 
 (defun tetris-60--floor-glyph ()
   "Return the two-column glyph string for the floor."
+  "==")
+
+(defun tetris-60--base-glyph ()
+  "Return the two-column glyph string for the second bottom border row."
   "\\/")
 
 (defun tetris-60--apply-display-table ()
@@ -249,7 +255,8 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
   (aset buffer-display-table tetris-60--cell-filled (vconcat (tetris-60--filled-cell-glyph)))
   (aset buffer-display-table tetris-60--cell-border-left (vconcat (tetris-60--left-border-glyph)))
   (aset buffer-display-table tetris-60--cell-border-right (vconcat (tetris-60--right-border-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-floor (vconcat (tetris-60--floor-glyph))))
+  (aset buffer-display-table tetris-60--cell-border-floor (vconcat (tetris-60--floor-glyph)))
+  (aset buffer-display-table tetris-60--cell-border-base (vconcat (tetris-60--base-glyph))))
 
 (defun tetris-60--font-available-p (family)
   "Return non-nil when FAMILY exists in the current GUI session."
@@ -376,7 +383,10 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
   (dotimes (x tetris-60--board-width)
     (gamegrid-set-cell (+ tetris-60--board-x x)
                        tetris-60--playfield-bottom
-                       tetris-60--cell-border-floor)))
+                       tetris-60--cell-border-floor)
+    (gamegrid-set-cell (+ tetris-60--board-x x)
+                       tetris-60--playfield-base
+                       tetris-60--cell-border-base)))
 
 (defun tetris-60--render-board ()
   "Render the static board contents and the active piece."
@@ -423,14 +433,19 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
                          (format "SCORE: %3d" tetris-60--score) 16)
   (tetris-60--put-string tetris-60--preview-label-x tetris-60--preview-label-y
                          "NEXT:" 8)
+  (tetris-60--clear-rect tetris-60--help-x tetris-60--help-y 25 5)
   (if tetris-60-show-controls
       (progn
-        (tetris-60--put-string tetris-60--help-x tetris-60--help-y "J  LEFT     L  RIGHT" 25)
-        (tetris-60--put-string tetris-60--help-x (1+ tetris-60--help-y) "I  ROTATE" 25)
-        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 2) "K  SOFT     SPC DROP" 25)
-        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 3) "P  PAUSE    N  NEW" 25)
-        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 4) "Q  END GAME" 25))
-    (tetris-60--clear-rect tetris-60--help-x tetris-60--help-y 25 5))
+        (tetris-60--put-string tetris-60--help-x tetris-60--help-y
+                               "J: LEFT   L: RIGHT" 25)
+        (tetris-60--put-string tetris-60--help-x (1+ tetris-60--help-y)
+                               "I: ROTATE" 25)
+        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 2)
+                               "K: SOFT   SPC: DROP" 25)
+        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 3)
+                               "P: PAUSE  N: NEW" 25)
+        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 4)
+                               "Q: END GAME" 25)))
   (when tetris-60--paused
     (tetris-60--put-string tetris-60--help-x 20 "PAUSED" 16))
   (unless tetris-60--paused
@@ -438,8 +453,8 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
 
 (defun tetris-60--render-game-over ()
   "Render the game-over banner."
-  (tetris-60--put-string 25 23 "GAME OVER" 18)
-  (tetris-60--put-string 25 24 "N: NEW GAME" 18))
+  (tetris-60--put-string 25 25 "GAME OVER" 18)
+  (tetris-60--put-string 25 26 "N: NEW GAME" 18))
 
 (defun tetris-60--render ()
   "Render the full game state."

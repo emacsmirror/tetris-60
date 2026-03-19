@@ -98,7 +98,9 @@
     (should (equal (aref buffer-display-table tetris-60--cell-border-right)
                    (vconcat (tetris-60--right-border-glyph))))
     (should (equal (aref buffer-display-table tetris-60--cell-border-floor)
-                   (vconcat (tetris-60--floor-glyph))))))
+                   (vconcat (tetris-60--floor-glyph))))
+    (should (equal (aref buffer-display-table tetris-60--cell-border-base)
+                   (vconcat (tetris-60--base-glyph))))))
 
 (ert-deftest tetris-60-filled-cell-glyph-is-double-width ()
   (should (= (length (tetris-60--filled-cell-glyph)) 2)))
@@ -130,6 +132,24 @@
   (should-not (commandp #'tetris-60--move-down))
   (should-not (commandp #'tetris-60--rotate))
   (should-not (commandp #'tetris-60--hard-drop)))
+
+(ert-deftest tetris-60-game-over-does-not-overwrite-floor ()
+  (tetris-60-test--with-game
+   (tetris-60--render)
+   (tetris-60--render-game-over)
+   (should (= (gamegrid-get-cell tetris-60--board-x tetris-60--playfield-bottom)
+              tetris-60--cell-border-floor))
+   (should (= (gamegrid-get-cell tetris-60--board-x tetris-60--playfield-base)
+              tetris-60--cell-border-base))
+   (should (= (gamegrid-get-cell 25 25) ?G))
+   (should (= (gamegrid-get-cell 25 26) ?N))))
+
+(ert-deftest tetris-60-help-first-line-is-left-aligned ()
+  (tetris-60-test--with-game
+   (tetris-60--render-status)
+   (should (= (gamegrid-get-cell tetris-60--help-x tetris-60--help-y) ?J))
+   (should (= (gamegrid-get-cell (+ tetris-60--help-x 10) tetris-60--help-y) ?L))
+   (should (= (gamegrid-get-cell tetris-60--help-x (1+ tetris-60--help-y)) ?I))))
 
 (ert-deftest tetris-60-tick-period-respects-custom-speed-function ()
   (let ((tetris-60-update-speed-function (lambda (_shapes lines)
