@@ -134,6 +134,24 @@ The value follows Emacs face height semantics, where 100 means 1.0x."
 (defconst tetris-60--cell-border-base-left 134)
 (defconst tetris-60--cell-border-base-right 135)
 
+(defconst tetris-60--static-cell-glyphs
+  `((,tetris-60--cell-filled . "[]")
+    (,tetris-60--cell-border-left . "<!")
+    (,tetris-60--cell-border-right . "!>")
+    (,tetris-60--cell-border-floor . "==")
+    (,tetris-60--cell-border-base . "\\/")
+    (,tetris-60--cell-border-base-left . " !")
+    (,tetris-60--cell-border-base-right . "! "))
+  "Fixed two-column glyphs keyed by internal cell code.")
+
+(defconst tetris-60--control-lines
+  ["J: LEFT   L: RIGHT"
+   "I: ROTATE"
+   "K: SOFT   SPC: DROP"
+   "P: PAUSE  N: NEW"
+   "Q: END GAME"]
+  "Help text rendered when `tetris-60-show-controls' is non-nil.")
+
 (defconst tetris-60--playfield-left (1- tetris-60--board-x))
 (defconst tetris-60--playfield-right (+ tetris-60--board-x tetris-60--board-width))
 (defconst tetris-60--playfield-bottom (+ tetris-60--board-y tetris-60--board-height))
@@ -223,54 +241,25 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
       (aset options char `(((t ,char)) nil nil)))
     options))
 
-(defun tetris-60--empty-cell-glyph ()
-  "Return the two-column glyph string for an empty cell."
-  (if (eq tetris-60-empty-cell-style 'blank) "  " " ."))
-
-(defun tetris-60--filled-cell-glyph ()
-  "Return the two-column glyph string for a filled cell."
-  "[]")
-
-(defun tetris-60--preview-empty-glyph ()
-  "Return the two-column glyph string for an empty preview cell."
-  "  ")
-
-(defun tetris-60--left-border-glyph ()
-  "Return the two-column glyph string for the left wall."
-  "<!")
-
-(defun tetris-60--right-border-glyph ()
-  "Return the two-column glyph string for the right wall."
-  "!>")
-
-(defun tetris-60--floor-glyph ()
-  "Return the two-column glyph string for the floor."
-  "==")
-
-(defun tetris-60--base-glyph ()
-  "Return the two-column glyph string for the second bottom border row."
-  "\\/")
-
-(defun tetris-60--base-left-glyph ()
-  "Return the two-column glyph string for the left edge of the floor row."
-  " !")
-
-(defun tetris-60--base-right-glyph ()
-  "Return the two-column glyph string for the right edge of the floor row."
-  "! ")
+(defun tetris-60--cell-glyph (cell)
+  "Return the two-column glyph string for CELL."
+  (if (= cell tetris-60--cell-empty)
+      (if (eq tetris-60-empty-cell-style 'blank) "  " " .")
+    (or (alist-get cell tetris-60--static-cell-glyphs)
+        (error "Unknown cell code: %S" cell))))
 
 (defun tetris-60--apply-display-table ()
   "Install multi-character glyphs for the playfield cells."
-  (aset buffer-display-table tetris-60--cell-empty (vconcat (tetris-60--empty-cell-glyph)))
-  (aset buffer-display-table tetris-60--cell-filled (vconcat (tetris-60--filled-cell-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-left (vconcat (tetris-60--left-border-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-right (vconcat (tetris-60--right-border-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-floor (vconcat (tetris-60--floor-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-base (vconcat (tetris-60--base-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-base-left
-        (vconcat (tetris-60--base-left-glyph)))
-  (aset buffer-display-table tetris-60--cell-border-base-right
-        (vconcat (tetris-60--base-right-glyph))))
+  (aset buffer-display-table tetris-60--cell-empty
+        (vconcat (tetris-60--cell-glyph tetris-60--cell-empty)))
+  (dolist (entry tetris-60--static-cell-glyphs)
+    (aset buffer-display-table (car entry) (vconcat (cdr entry)))))
+
+(defun tetris-60--set-local-value (variable value)
+  "Set VARIABLE buffer-locally to VALUE when it differs from the default."
+  (if (equal value (default-value variable))
+      (kill-local-variable variable)
+    (set (make-local-variable variable) value)))
 
 (defun tetris-60--font-available-p (family)
   "Return non-nil when FAMILY exists in the current GUI session."
@@ -294,11 +283,10 @@ The timer shortens as LINES increases and never drops below 0.05 seconds."
         (setq spec (append spec `(:family ,family)))))
     (when (and (display-graphic-p) tetris-60-font-height)
       (setq spec (append spec `(:height ,tetris-60-font-height))))
-    (setq-local face-remapping-alist
-                (when spec
-                  `((default ,spec)))))
-  (setq-local line-spacing 0)
-  (setq-local cursor-type nil))
+    (tetris-60--set-local-value 'face-remapping-alist
+                                (when spec
+                                  `((default ,spec)))))
+  (tetris-60--set-local-value 'cursor-type nil))
 
 (defun tetris-60--init-buffer ()
   "Initialize the game buffer."
@@ -431,8 +419,8 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
 (defun tetris-60--render-preview ()
   "Render the next piece preview."
   (let ((rows (make-vector 4 nil))
-        (empty (tetris-60--preview-empty-glyph))
-        (filled (tetris-60--filled-cell-glyph)))
+        (empty "  ")
+        (filled (tetris-60--cell-glyph tetris-60--cell-filled)))
     (dotimes (row 4)
       (aset rows row (make-list 4 empty)))
     (dolist (cell (append (tetris-60--shape-cells tetris-60--next-shape 0) nil))
@@ -458,17 +446,12 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
                          "NEXT:" 8)
   (tetris-60--clear-rect tetris-60--help-x tetris-60--help-y 25 5)
   (if tetris-60-show-controls
-      (progn
-        (tetris-60--put-string tetris-60--help-x tetris-60--help-y
-                               "J: LEFT   L: RIGHT" 25)
-        (tetris-60--put-string tetris-60--help-x (1+ tetris-60--help-y)
-                               "I: ROTATE" 25)
-        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 2)
-                               "K: SOFT   SPC: DROP" 25)
-        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 3)
-                               "P: PAUSE  N: NEW" 25)
-        (tetris-60--put-string tetris-60--help-x (+ tetris-60--help-y 4)
-                               "Q: END GAME" 25)))
+      (cl-loop for line across tetris-60--control-lines
+               for offset from 0
+               do (tetris-60--put-string tetris-60--help-x
+                                         (+ tetris-60--help-y offset)
+                                         line
+                                         25)))
   (when tetris-60--paused
     (tetris-60--put-string tetris-60--help-x 20 "PAUSED" 16))
   (unless tetris-60--paused
@@ -598,12 +581,14 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
       (tetris-60--render)
       t)))
 
-(defun tetris-60--reset-state ()
-  "Reset all game state for a fresh game."
+(defun tetris-60--reset-runtime-state (&optional next-shape)
+  "Reset counters and flags for a fresh game.
+
+NEXT-SHAPE overrides the queued piece when non-nil."
   (setq tetris-60--board (tetris-60--make-empty-board)
         tetris-60--shape 0
         tetris-60--rotation 0
-        tetris-60--next-shape (tetris-60--random-shape)
+        tetris-60--next-shape (or next-shape (tetris-60--random-shape))
         tetris-60--shape-count 0
         tetris-60--line-count 0
         tetris-60--score 0
@@ -611,7 +596,11 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
         tetris-60--pos-y 0
         tetris-60--piece-active nil
         tetris-60--paused nil
-        tetris-60--score-recorded nil)
+        tetris-60--score-recorded nil))
+
+(defun tetris-60--reset-state ()
+  "Reset all game state for a fresh game."
+  (tetris-60--reset-runtime-state)
   (tetris-60--render)
   (tetris-60--spawn-piece))
 
@@ -749,9 +738,9 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
   :interactive nil
   (add-hook 'kill-buffer-hook #'gamegrid-kill-timer nil t)
   (use-local-map tetris-60-null-map)
-  (setq-local show-trailing-whitespace nil)
-  (setq-local gamegrid-use-glyphs nil)
-  (setq-local gamegrid-use-color nil)
+  (tetris-60--set-local-value 'show-trailing-whitespace nil)
+  (tetris-60--set-local-value 'gamegrid-use-glyphs nil)
+  (tetris-60--set-local-value 'gamegrid-use-color nil)
   (gamegrid-init (tetris-60--display-options))
   (tetris-60--apply-display-table)
   (tetris-60--setup-face)
@@ -759,7 +748,7 @@ If LOCK-ON-HIT is non-nil, locking is triggered after a blocked move."
 
 ;;;###autoload
 (defun tetris-60 ()
-  "Start playing `tetris-60'."
+  "Play the Tetris-60 game."
   (interactive)
   (select-window (or (get-buffer-window tetris-60-buffer-name)
                      (selected-window)))

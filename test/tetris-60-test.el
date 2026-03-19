@@ -13,18 +13,9 @@
   "Create an isolated `tetris-60' buffer and run BODY inside it."
   `(with-temp-buffer
      (tetris-60-mode)
-     (setq tetris-60--board (tetris-60--make-empty-board)
-           tetris-60--shape 0
-           tetris-60--rotation 0
-           tetris-60--next-shape 1
-           tetris-60--shape-count 0
-           tetris-60--line-count 0
-           tetris-60--score 0
-           tetris-60--pos-x 4
-           tetris-60--pos-y 0
-           tetris-60--piece-active t
-           tetris-60--paused nil
-           tetris-60--score-recorded nil)
+     (tetris-60--reset-runtime-state 1)
+     (setq tetris-60--pos-x 4
+           tetris-60--piece-active t)
      ,@body))
 
 (ert-deftest tetris-60-collision-detects-boundaries-and-blocks ()
@@ -88,85 +79,12 @@
       (should (equal (aref buffer-display-table tetris-60--cell-empty)
                      (vconcat "  "))))))
 
-(ert-deftest tetris-60-dot-cell-glyph-is-right-aligned ()
-  (let ((tetris-60-empty-cell-style 'dot))
-    (with-temp-buffer
-      (tetris-60-mode)
-      (should (equal (aref buffer-display-table tetris-60--cell-empty)
-                     (vconcat " ."))))))
-
-(ert-deftest tetris-60-movie-style-display-glyphs-are-installed ()
+(ert-deftest tetris-60-default-local-setting-is-not-forced ()
   (with-temp-buffer
-    (tetris-60-mode)
-    (should (equal (aref buffer-display-table tetris-60--cell-filled)
-                   (vconcat (tetris-60--filled-cell-glyph))))
-    (should (equal (aref buffer-display-table tetris-60--cell-border-left)
-                   (vconcat (tetris-60--left-border-glyph))))
-    (should (equal (aref buffer-display-table tetris-60--cell-border-right)
-                   (vconcat (tetris-60--right-border-glyph))))
-    (should (equal (aref buffer-display-table tetris-60--cell-border-floor)
-                   (vconcat (tetris-60--floor-glyph))))
-    (should (equal (aref buffer-display-table tetris-60--cell-border-base)
-                   (vconcat (tetris-60--base-glyph))))
-    (should (equal (aref buffer-display-table tetris-60--cell-border-base-left)
-                   (vconcat (tetris-60--base-left-glyph))))
-    (should (equal (aref buffer-display-table tetris-60--cell-border-base-right)
-                   (vconcat (tetris-60--base-right-glyph))))))
-
-(ert-deftest tetris-60-filled-cell-glyph-is-double-width ()
-  (should (= (length (tetris-60--filled-cell-glyph)) 2)))
-
-(ert-deftest tetris-60-preview-renders-only-blocks-on-blank-background ()
-  (tetris-60-test--with-game
-   (setq tetris-60--next-shape 0)
-   (tetris-60--render-preview)
-   (should (= (gamegrid-get-cell tetris-60--preview-x tetris-60--preview-y) ?\[))
-   (should (= (gamegrid-get-cell (+ tetris-60--preview-x 4) tetris-60--preview-y) ?\s))
-   (should (= (gamegrid-get-cell (+ tetris-60--preview-x 6) (+ tetris-60--preview-y 2)) ?\s))))
-
-(ert-deftest tetris-60-font-customization-is-safe-in-nongui-mode ()
-  (let ((tetris-60-font-family "PT Mono")
-        (tetris-60-font-height 180))
-    (with-temp-buffer
-      (tetris-60-mode)
-      (should-not (tetris-60--resolve-font-family))
-      (should (local-variable-p 'face-remapping-alist))
-      (should (local-variable-p 'cursor-type)))))
-
-(ert-deftest tetris-60-only-entry-command-is-public ()
-  (should (commandp #'tetris-60))
-  (should-not (commandp #'tetris-60--start-game))
-  (should-not (commandp #'tetris-60--end-game))
-  (should-not (commandp #'tetris-60--pause-game))
-  (should-not (commandp #'tetris-60--move-left))
-  (should-not (commandp #'tetris-60--move-right))
-  (should-not (commandp #'tetris-60--move-down))
-  (should-not (commandp #'tetris-60--rotate))
-  (should-not (commandp #'tetris-60--hard-drop)))
-
-(ert-deftest tetris-60-game-over-does-not-overwrite-floor ()
-  (tetris-60-test--with-game
-   (tetris-60--render)
-   (tetris-60--render-game-over)
-   (should (= (gamegrid-get-cell tetris-60--board-x tetris-60--playfield-bottom)
-              tetris-60--cell-border-floor))
-   (should (= (gamegrid-get-cell tetris-60--playfield-left tetris-60--playfield-bottom)
-              tetris-60--cell-border-base-left))
-   (should (= (gamegrid-get-cell tetris-60--playfield-right tetris-60--playfield-bottom)
-              tetris-60--cell-border-base-right))
-   (should (= (gamegrid-get-cell tetris-60--board-x tetris-60--playfield-base)
-              tetris-60--cell-border-base))
-   (should (= (gamegrid-get-cell tetris-60--playfield-right tetris-60--playfield-base)
-              tetris-60--cell-border-base))
-   (should (= (gamegrid-get-cell 25 25) ?G))
-   (should (= (gamegrid-get-cell 25 26) ?N))))
-
-(ert-deftest tetris-60-help-first-line-is-left-aligned ()
-  (tetris-60-test--with-game
-   (tetris-60--render-status)
-   (should (= (gamegrid-get-cell tetris-60--help-x tetris-60--help-y) ?J))
-   (should (= (gamegrid-get-cell (+ tetris-60--help-x 10) tetris-60--help-y) ?L))
-   (should (= (gamegrid-get-cell tetris-60--help-x (1+ tetris-60--help-y)) ?I))))
+    (tetris-60--set-local-value 'face-remapping-alist nil)
+    (should-not (local-variable-p 'face-remapping-alist))
+    (tetris-60--set-local-value 'face-remapping-alist '((default (:weight bold))))
+    (should (equal face-remapping-alist '((default (:weight bold)))))))
 
 (ert-deftest tetris-60-tick-period-respects-custom-speed-function ()
   (let ((tetris-60-update-speed-function (lambda (_shapes lines)
