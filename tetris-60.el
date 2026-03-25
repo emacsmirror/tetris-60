@@ -143,17 +143,13 @@ The value follows Emacs face height semantics, where 100 means 1.0x."
 (defconst tetris-60--cell-border-right 131)
 (defconst tetris-60--cell-border-floor 132)
 (defconst tetris-60--cell-border-base 133)
-(defconst tetris-60--cell-border-base-left 134)
-(defconst tetris-60--cell-border-base-right 135)
 
 (defconst tetris-60--static-cell-glyphs
   `((,tetris-60--cell-filled . "[]")
     (,tetris-60--cell-border-left . "<!")
     (,tetris-60--cell-border-right . "!>")
     (,tetris-60--cell-border-floor . "==")
-    (,tetris-60--cell-border-base . "\\/")
-    (,tetris-60--cell-border-base-left . " !")
-    (,tetris-60--cell-border-base-right . "! "))
+    (,tetris-60--cell-border-base . "\\/"))
   "Fixed two-column glyphs keyed by internal cell code.")
 
 (defconst tetris-60--control-lines
@@ -406,10 +402,10 @@ If WIDTH is non-nil, clear the remainder of the line segment up to WIDTH."
                      tetris-60--cell-border-base)
   (gamegrid-set-cell tetris-60--playfield-left
                      tetris-60--playfield-bottom
-                     tetris-60--cell-border-base-left)
+                     tetris-60--cell-border-left)
   (gamegrid-set-cell tetris-60--playfield-right
                      tetris-60--playfield-bottom
-                     tetris-60--cell-border-base-right))
+                     tetris-60--cell-border-right))
 
 (defun tetris-60--render-board ()
   "Render the static board contents and the active piece."
