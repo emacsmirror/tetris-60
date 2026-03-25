@@ -2,8 +2,10 @@
 
 ;; Copyright (C) 2026
 
-;; Author: Codex
+;; Author: Xiaogang Su <suxiaogang223@icloud.com>
+;; Maintainer: Xiaogang Su <suxiaogang223@icloud.com>
 ;; Keywords: games
+;; URL: https://github.com/suxiaogang223/tetris-60
 ;; Package-Requires: ((emacs "29.1"))
 ;; Version: 0.1.0
 

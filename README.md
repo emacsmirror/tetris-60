@@ -25,7 +25,21 @@ Retro ASCII Tribute to the 1984 Original Tetris.
 
 ## Installation
 
-Since `tetris-60` is a single-file package, you can install it by downloading `tetris-60.el` and loading it in your Emacs configuration:
+### MELPA
+
+Once `tetris-60` is accepted by MELPA, install it with:
+
+```elisp
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+(package-initialize)
+```
+
+Then run `M-x package-refresh-contents`, followed by `M-x package-install RET tetris-60 RET`.
+
+### Manual Install
+
+Since `tetris-60` is a single-file package, you can also install it by downloading `tetris-60.el` and loading it in your Emacs configuration:
 
 ```elisp
 (add-to-list 'load-path "/path/to/tetris-60")
