@@ -1,4 +1,4 @@
-;;; tetris-60.el --- Retro ASCII Tetris for Emacs -*- lexical-binding: t; -*-
+;;; tetris-60.el --- Retro ASCII Tetris -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026
 
